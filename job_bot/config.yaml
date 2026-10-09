@@ -1,0 +1,35 @@
+name: Job Bot
+version: "0.1.0"
+slug: job_bot
+description: Telegram-бот вакансий (hh.ru, Habr Career, Telegram) с тестовыми интервью на локальной LLM
+url: https://github.com/Nea88/job_bot
+arch:
+  - aarch64
+  - amd64
+image: ghcr.io/nea88/job_bot
+startup: application
+boot: auto
+hassio_api: true
+options:
+  bot_token: ""
+  admin_ids: []
+  ollama_url: ""
+  ollama_model: "qwen2.5:3b"
+  ollama_timeout: 900
+  collect_interval_minutes: 60
+  daily_interview_hour: 10
+  hh_user_agent: "job-bot/0.1 (you@example.com)"
+schema:
+  bot_token: password
+  admin_ids:
+    - int
+  ollama_url: str?
+  ollama_model: str
+  ollama_timeout: int(60,3600)
+  collect_interval_minutes: int(15,1440)
+  daily_interview_hour: int(0,23)
+  hh_user_agent: str
+  hh_access_token: password?
+  tg_api_id: int?
+  tg_api_hash: password?
+  tg_session_string: password?

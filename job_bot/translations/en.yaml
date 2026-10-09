@@ -1,0 +1,33 @@
+configuration:
+  bot_token:
+    name: Bot token
+    description: Token from @BotFather.
+  admin_ids:
+    name: Admins
+    description: Telegram user IDs allowed to use /channels and /run_now.
+  ollama_url:
+    name: Ollama URL
+    description: Leave empty to auto-discover the Ollama add-on, or set http://<host>:11434.
+  ollama_model:
+    name: Model
+    description: Pulled automatically. qwen2.5:3b on a Raspberry Pi, qwen2.5:7b-instruct on a stronger machine.
+  ollama_timeout:
+    name: LLM timeout, seconds
+  collect_interval_minutes:
+    name: Collection interval, minutes
+  daily_interview_hour:
+    name: Daily interview hour
+  hh_user_agent:
+    name: hh.ru User-Agent
+    description: Required by the hh.ru API, "name/version (email)".
+  hh_access_token:
+    name: hh.ru application token
+    description: Token from dev.hh.ru if the API answers 403.
+  tg_api_id:
+    name: Telegram API ID
+    description: From my.telegram.org; only needed to read channels.
+  tg_api_hash:
+    name: Telegram API hash
+  tg_session_string:
+    name: Telegram session
+    description: Output of scripts/telethon_login.py --string.

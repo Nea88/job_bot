@@ -4,6 +4,17 @@ Telegram-бот: раз в час собирает вакансии с hh.ru, Ha
 пользователей, присылает новые совпадения, в фоне извлекает требования локальной LLM (Ollama)
 и собирает тестовое интервью по самым востребованным навыкам.
 
+## Home Assistant (Raspberry Pi)
+
+[![Добавить репозиторий в Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FNea88%2Fjob_bot)
+
+1. Настройки → Дополнения → Магазин дополнений → ⋮ → Репозитории → `https://github.com/Nea88/job_bot`.
+2. Установи и запусти **Ollama**.
+3. Установи **Job Bot**, укажи `bot_token` и `admin_ids`, запусти. Ollama и модель подхватятся сами.
+
+Подробности: [job_bot/DOCS.md](job_bot/DOCS.md). Новая версия: подними `version` в
+`job_bot/config.yaml` и запушь в `main`, тогда CI соберёт образ `ghcr.io/nea88/job_bot`, а HA покажет обновление.
+
 ## Запуск локально
 
 ```bash
@@ -14,13 +25,13 @@ uv run job-bot
 ```
 
 Telegram-каналы (опционально): заполнить `TG_API_ID`/`TG_API_HASH` (https://my.telegram.org),
-один раз выполнить `uv run python scripts/telethon_login.py`, затем админом: `/channels add <username>`.
+один раз выполнить `uv run python scripts/telethon_login.py` (или с `--string` для аддона HA), затем админом: `/channels add <username>`.
 
 ## Docker
 
 ```bash
 docker compose up -d --build
-docker compose run --rm bot uv run python scripts/telethon_login.py   # если нужны каналы
+docker compose run --rm bot python scripts/telethon_login.py   # если нужны каналы
 ```
 
 ## Команды

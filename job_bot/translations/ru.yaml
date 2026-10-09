@@ -1,0 +1,33 @@
+configuration:
+  bot_token:
+    name: Токен бота
+    description: Токен от @BotFather.
+  admin_ids:
+    name: Администраторы
+    description: Telegram ID пользователей с доступом к /channels и /run_now (узнать свой — @userinfobot).
+  ollama_url:
+    name: Адрес Ollama
+    description: Оставь пустым — бот сам найдёт аддон Ollama. Либо http://<хост>:11434.
+  ollama_model:
+    name: Модель
+    description: Скачивается автоматически. На Raspberry Pi — qwen2.5:3b, на мощном ПК — qwen2.5:7b-instruct.
+  ollama_timeout:
+    name: Таймаут LLM, сек
+  collect_interval_minutes:
+    name: Интервал сбора, мин
+  daily_interview_hour:
+    name: Час ежедневного интервью
+  hh_user_agent:
+    name: hh.ru User-Agent
+    description: Обязателен для API hh.ru, формат «название/версия (email)».
+  hh_access_token:
+    name: hh.ru токен приложения
+    description: Токен с dev.hh.ru, если API отвечает 403.
+  tg_api_id:
+    name: Telegram API ID
+    description: С my.telegram.org — нужен только для чтения каналов.
+  tg_api_hash:
+    name: Telegram API hash
+  tg_session_string:
+    name: Telegram-сессия
+    description: Вывод команды scripts/telethon_login.py --string.

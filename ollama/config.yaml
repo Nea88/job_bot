@@ -1,0 +1,14 @@
+name: Ollama
+version: "0.40.2"
+slug: ollama
+description: Локальная LLM для Job Bot
+url: https://github.com/Nea88/job_bot
+arch:
+  - aarch64
+  - amd64
+startup: services
+boot: auto
+ports:
+  11434/tcp: null
+ports_description:
+  11434/tcp: Ollama API (откройте, чтобы пользоваться моделью из локальной сети)
