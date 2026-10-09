@@ -5,7 +5,7 @@ from datetime import datetime
 import httpx
 
 from job_bot.db.models import to_naive_utc
-from job_bot.sources.base import RawVacancy, SearchQuery, html_to_text
+from job_bot.sources.base import RawVacancy, SearchQuery, SourceUnavailable, html_to_text
 
 log = logging.getLogger(__name__)
 
@@ -64,16 +64,28 @@ def parse_item(item: dict) -> RawVacancy:
     )
 
 
+USER_AGENT_HELP = (
+    'set hh_user_agent to "AppName/1.0 (your@email)"; hh.ru blacklists empty and placeholder values'
+)
+
+
+def is_placeholder_user_agent(user_agent: str | None) -> bool:
+    return not user_agent or "example.com" in user_agent or "@" not in user_agent
+
+
 class HHSource:
     name = "hh"
 
-    def __init__(self, http: httpx.AsyncClient, user_agent: str, access_token: str | None = None):
+    def __init__(self, http: httpx.AsyncClient, user_agent: str | None, access_token: str | None = None):
         self._http = http
-        self._headers = {"HH-User-Agent": user_agent, "User-Agent": user_agent}
+        self._user_agent = user_agent
+        self._headers = {"HH-User-Agent": user_agent or "", "User-Agent": user_agent or ""}
         if access_token:
             self._headers["Authorization"] = f"Bearer {access_token}"
 
     async def search(self, query: SearchQuery, since: datetime) -> list[RawVacancy]:
+        if is_placeholder_user_agent(self._user_agent):
+            raise SourceUnavailable(USER_AGENT_HELP)
         params: dict = {
             "text": build_text(query),
             "per_page": PER_PAGE,
@@ -96,6 +108,8 @@ class HHSource:
             )
             if resp.is_client_error:
                 # hh explains rejected params in the body, e.g. {"errors": [{"type": "bad_argument", "value": "..."}]}
+                if "bad_user_agent" in resp.text:
+                    raise SourceUnavailable(f"User-Agent {self._user_agent!r} rejected: {USER_AGENT_HELP}")
                 log.error("hh rejected search %s: %s", resp.url, resp.text[:500])
             resp.raise_for_status()
             data = resp.json()

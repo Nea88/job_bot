@@ -76,6 +76,32 @@ async def test_hh_search_uses_work_format():
         return httpx.Response(200, json={"items": [], "pages": 0})
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
-        await hh.HHSource(http, "ua").search(SearchQuery(keywords_any=("ios",), schedule="remote"), datetime(2026, 10, 9))
+        await hh.HHSource(http, "Bot/1.0 (a@b.ru)").search(SearchQuery(keywords_any=("ios",), schedule="remote"), datetime(2026, 10, 9))
     assert seen["work_format"] == "REMOTE"
     assert "schedule" not in seen
+
+
+async def test_hh_requires_real_user_agent():
+    import httpx
+    import pytest
+
+    from job_bot.sources.base import SourceUnavailable
+
+    async with httpx.AsyncClient() as http:
+        for ua in (None, "job-bot/0.1 (you@example.com)", "job-bot"):
+            with pytest.raises(SourceUnavailable):
+                await hh.HHSource(http, ua).search(SearchQuery(keywords_any=("ios",)), datetime(2026, 10, 9))
+
+
+async def test_hh_blacklisted_user_agent():
+    import httpx
+    import pytest
+
+    from job_bot.sources.base import SourceUnavailable
+
+    def handler(request):
+        return httpx.Response(400, json={"errors": [{"value": "blacklisted", "type": "bad_user_agent"}]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        with pytest.raises(SourceUnavailable):
+            await hh.HHSource(http, "Bot/1.0 (a@b.ru)").search(SearchQuery(keywords_any=("ios",)), datetime(2026, 10, 9))

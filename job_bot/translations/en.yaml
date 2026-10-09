@@ -19,7 +19,7 @@ configuration:
     name: Daily interview hour
   hh_user_agent:
     name: hh.ru User-Agent
-    description: Required by the hh.ru API, "name/version (email)".
+    description: Required for hh.ru, "AppName/1.0 (your@email)". hh.ru blacklists placeholders. Empty disables hh.ru.
   hh_access_token:
     name: hh.ru application token
     description: Token from dev.hh.ru if the API answers 403.

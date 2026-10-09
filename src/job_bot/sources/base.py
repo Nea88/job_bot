@@ -59,6 +59,10 @@ class SearchQuery:
         return hashlib.sha1(json.dumps(asdict(self), sort_keys=True).encode()).hexdigest()
 
 
+class SourceUnavailable(Exception):
+    """The source cannot work at all (misconfiguration, ban): skip it for this run without retrying."""
+
+
 class Source(Protocol):
     name: str
 

@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     collect_interval_minutes: int = 60
     daily_interview_hour: int = 10
 
-    hh_user_agent: str = "job-bot/0.1 (you@example.com)"
+    # hh.ru requires "AppName/version (contact email)" and blacklists placeholder values
+    hh_user_agent: str | None = None
     hh_access_token: str | None = None
 
     tg_api_id: int | None = None

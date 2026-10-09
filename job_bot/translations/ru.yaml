@@ -19,7 +19,7 @@ configuration:
     name: Час ежедневного интервью
   hh_user_agent:
     name: hh.ru User-Agent
-    description: Обязателен для API hh.ru, формат «название/версия (email)».
+    description: Нужен для hh.ru, формат «Название/1.0 (твой@email)», например «JobBot/1.0 (me@mail.ru)». Шаблонные значения hh блокирует. Пусто — hh.ru отключён.
   hh_access_token:
     name: hh.ru токен приложения
     description: Токен с dev.hh.ru, если API отвечает 403.

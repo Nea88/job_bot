@@ -15,7 +15,7 @@ from job_bot.db.models import Filter, Sent, SourceState, TgChannel, User, Vacanc
 from job_bot.db.repo import active_filters
 from job_bot.matching import contains, matches, query_for
 from job_bot.pipeline.analyze import Analyzer
-from job_bot.sources.base import RawVacancy, Source
+from job_bot.sources.base import RawVacancy, Source, SourceUnavailable
 from job_bot.sources.hirify import HirifySource
 from job_bot.sources.telegram import TelegramSource
 
@@ -70,6 +70,9 @@ class Collector:
                 for query in queries:
                     try:
                         new_ids += await self._collect_query(source, query)
+                    except SourceUnavailable as e:
+                        log.error("%s skipped: %s", source.name, e)
+                        break
                     except Exception:
                         # one broken source/query must not stop the rest
                         log.exception("%s: query failed", source.name)
