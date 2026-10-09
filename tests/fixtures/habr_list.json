@@ -1,0 +1,254 @@
+{
+ "list": [
+  {
+   "id": 1000166512,
+   "href": "/vacancies/1000166512",
+   "title": "Аналитик SOAR",
+   "isMarked": true,
+   "remoteWork": false,
+   "salaryQualification": {
+    "title": "Средний (Middle)",
+    "href": "/vacancies?qid=4"
+   },
+   "publishedDate": {
+    "date": "2026-10-09T10:47:16+03:00",
+    "title": "9 октября"
+   },
+   "location": null,
+   "company": {
+    "id": 745010734,
+    "alias_name": "gnivc",
+    "href": "/companies/gnivc",
+    "title": "ГНИВЦ",
+    "accredited": true,
+    "logo": {
+     "src": "https://habrastorage.org/getpro/moikrug/uploads/company/744/972/297/logo/medium_0b6f3a319370c1b9ca1988477614b8b7.png"
+    },
+    "rating": {
+     "title": "Средняя оценка компании в 2026 году",
+     "value": "4.69",
+     "href": "/companies/gnivc/scores"
+    }
+   },
+   "employment": null,
+   "salary": {
+    "from": null,
+    "to": null,
+    "currency": null,
+    "formatted": ""
+   },
+   "divisions": [
+    {
+     "title": "Инженер по безопасности",
+     "href": "/vacancies/spec/infosec/security_engineer"
+    }
+   ],
+   "skills": [
+    {
+     "title": "Linux",
+     "href": "/vacancies/skills/linux"
+    },
+    {
+     "title": "PostgreSQL",
+     "href": "/vacancies/skills/postgresql"
+    },
+    {
+     "title": "SIEM",
+     "href": "/vacancies/skills/siem"
+    },
+    {
+     "title": "Regex",
+     "href": "/vacancies/skills/regex"
+    }
+   ],
+   "media": null,
+   "locations": [
+    {
+     "title": "Москва",
+     "href": "/vacancies?city_id=678"
+    }
+   ],
+   "favorite": false,
+   "archived": false,
+   "hidden": false,
+   "can_edit": false,
+   "userVacancyBanHref": "/api/frontend/user_vacancy_bans",
+   "quickResponseHref": "/api/frontend/quick_responses",
+   "qualification": "Middle",
+   "externalLink": null,
+   "predictedSalary": {
+    "from": 159000,
+    "to": 265000,
+    "currency": "rur",
+    "formatted": "от 159 000 до 265 000 ₽"
+   },
+   "response": {
+    "kind": "guest"
+   },
+   "hasPublishedCBP": true,
+   "color": "#8B55FF"
+  },
+  {
+   "id": 1000168911,
+   "href": "/vacancies/1000168911",
+   "title": "Python-разработчик",
+   "isMarked": false,
+   "remoteWork": false,
+   "salaryQualification": {
+    "title": "Средний (Middle)",
+    "href": "/vacancies?qid=4"
+   },
+   "publishedDate": {
+    "date": "2026-10-09T10:23:54+03:00",
+    "title": "9 октября"
+   },
+   "location": null,
+   "company": {
+    "id": 1000130110,
+    "alias_name": "irsural",
+    "href": "/companies/irsural",
+    "title": "ИРС",
+    "accredited": false,
+    "logo": {
+     "src": "https://habrastorage.org/getpro/moikrug/uploads/company/100/009/167/3/logo/medium_02413f556d467fc1ff0b117ce91c9c72.png"
+    },
+    "rating": null
+   },
+   "employment": "full_time",
+   "salary": {
+    "from": null,
+    "to": 110000,
+    "currency": "rur",
+    "formatted": "110 000 ₽"
+   },
+   "divisions": [
+    {
+     "title": "Бэкенд разработчик",
+     "href": "/vacancies/spec/development/backend"
+    }
+   ],
+   "skills": [
+    {
+     "title": "Python",
+     "href": "/vacancies/programmist_python"
+    },
+    {
+     "title": "Linux",
+     "href": "/vacancies/skills/linux"
+    },
+    {
+     "title": "SQL",
+     "href": "/vacancies/programmist_sql"
+    },
+    {
+     "title": "Django",
+     "href": "/vacancies/django_razrabotchik"
+    },
+    {
+     "title": "Flask",
+     "href": "/vacancies/skills/flask"
+    },
+    {
+     "title": "Git",
+     "href": "/vacancies/skills/git"
+    },
+    {
+     "title": "FastAPI",
+     "href": "/vacancies/skills/fastapi"
+    }
+   ],
+   "media": null,
+   "locations": [
+    {
+     "title": "Екатеринбург",
+     "href": "/vacancies?city_id=693"
+    }
+   ],
+   "favorite": false,
+   "archived": false,
+   "hidden": false,
+   "can_edit": false,
+   "userVacancyBanHref": "/api/frontend/user_vacancy_bans",
+   "quickResponseHref": "/api/frontend/quick_responses",
+   "qualification": "Middle",
+   "externalLink": null,
+   "predictedSalary": null,
+   "response": {
+    "kind": "guest"
+   },
+   "hasPublishedCBP": false,
+   "color": null
+  },
+  {
+   "id": 1000153847,
+   "href": "/vacancies/1000153847",
+   "title": "Senior QA Python Automation Engineer ",
+   "isMarked": false,
+   "remoteWork": true,
+   "salaryQualification": {
+    "title": "Старший (Senior)",
+    "href": "/vacancies?qid=5"
+   },
+   "publishedDate": {
+    "date": "2026-10-09T09:02:43+03:00",
+    "title": "9 октября"
+   },
+   "location": null,
+   "company": {
+    "id": 1000113246,
+    "alias_name": "marfa-tech",
+    "href": "/companies/marfa-tech",
+    "title": "Marfatech",
+    "accredited": false,
+    "logo": {
+     "src": "https://habrastorage.org/getpro/moikrug/uploads/company/100/007/480/9/logo/medium_673d36acc231424ffd13ccebe7ea6bb9.png"
+    },
+    "rating": null
+   },
+   "employment": "full_time",
+   "salary": {
+    "from": null,
+    "to": null,
+    "currency": null,
+    "formatted": ""
+   },
+   "divisions": [
+    {
+     "title": "Инженер по автоматизации тестирования",
+     "href": "/vacancies/spec/testing/test_automation"
+    }
+   ],
+   "skills": [
+    {
+     "title": "Python",
+     "href": "/vacancies/programmist_python"
+    },
+    {
+     "title": "Автоматизация тестирования",
+     "href": "/vacancies/testirovschik_avtomatizator"
+    }
+   ],
+   "media": null,
+   "locations": null,
+   "favorite": false,
+   "archived": false,
+   "hidden": false,
+   "can_edit": false,
+   "userVacancyBanHref": "/api/frontend/user_vacancy_bans",
+   "quickResponseHref": "/api/frontend/quick_responses",
+   "qualification": "Senior",
+   "externalLink": null,
+   "predictedSalary": {
+    "from": 265000,
+    "to": 370000,
+    "currency": "rur",
+    "formatted": "от 265 000 до 370 000 ₽"
+   },
+   "response": {
+    "kind": "guest"
+   },
+   "hasPublishedCBP": false,
+   "color": null
+  }
+ ]
+}

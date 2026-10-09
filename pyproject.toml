@@ -1,0 +1,37 @@
+[project]
+name = "job-bot"
+version = "0.1.0"
+description = "Telegram bot that collects vacancies hourly and builds mock interviews with a local LLM"
+requires-python = ">=3.12"
+dependencies = [
+    "aiogram>=3.13,<4",
+    "apscheduler>=3.10,<4",
+    "sqlalchemy[asyncio]>=2.0.30",
+    "aiosqlite>=0.20",
+    "httpx>=0.27",
+    "selectolax>=1.0",
+    "telethon>=1.36",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+job-bot = "job_bot.main:run"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/job_bot"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
