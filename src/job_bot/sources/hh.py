@@ -16,6 +16,8 @@ REQUEST_DELAY = 0.3
 
 WORK_FORMAT_MAP = {"REMOTE": "remote", "HYBRID": "hybrid", "ON_SITE": "office"}
 SCHEDULE_MAP = {"remote": "remote", "fullDay": "office", "shift": "office", "flyInFly": "office"}
+# filter schedule -> hh `work_format` search param (the old `schedule` param is deprecated and rejected)
+WORK_FORMAT_PARAM = {v: k for k, v in WORK_FORMAT_MAP.items()}
 
 
 def build_text(query: SearchQuery) -> str:
@@ -82,8 +84,8 @@ class HHSource:
             params["area"] = query.hh_area_id
         if query.experience:
             params["experience"] = query.experience
-        if query.schedule == "remote":
-            params["schedule"] = "remote"
+        if query.schedule in WORK_FORMAT_PARAM:
+            params["work_format"] = WORK_FORMAT_PARAM[query.schedule]
         if query.salary_min:
             params["salary"] = query.salary_min
 
@@ -92,6 +94,9 @@ class HHSource:
             resp = await self._http.get(
                 f"{HH_API}/vacancies", params={**params, "page": page}, headers=self._headers
             )
+            if resp.is_client_error:
+                # hh explains rejected params in the body, e.g. {"errors": [{"type": "bad_argument", "value": "..."}]}
+                log.error("hh rejected search %s: %s", resp.url, resp.text[:500])
             resp.raise_for_status()
             data = resp.json()
             result.extend(parse_item(item) for item in data.get("items", []))

@@ -53,6 +53,18 @@ def parse_words(text: str) -> list[str]:
     return result
 
 
+def parse_salary(text: str) -> int | None:
+    """'250000', '250к', '250k' and bare '250' (nobody means 250 ₽ a month) all mean 250 000."""
+    text = text.lower().replace(" ", "").removesuffix("₽").removesuffix("руб")
+    multiplier = 1
+    if text.endswith(("к", "k", "т")):
+        text, multiplier = text[:-1], 1000
+    if not text.isdigit():
+        return None
+    value = int(text) * multiplier
+    return value * 1000 if value < 1000 else value
+
+
 @router.message(Command("filters"))
 async def cmd_filters(message: Message, sm: async_sessionmaker) -> None:
     async with sm() as session:
@@ -174,19 +186,17 @@ async def step_experience(call: CallbackQuery, callback_data: WizardCb, state: F
     await state.update_data(experience=None if callback_data.value == "any" else callback_data.value)
     await state.set_state(NewFilter.salary)
     await call.message.edit_text(f"Опыт: {EXPERIENCES[callback_data.value]}")
-    await call.message.answer(f"Минимальная зарплата в рублях (число) или {SKIP}.")
+    await call.message.answer(f"Минимальная зарплата в рублях, например <code>300000</code> или <code>300к</code>, или {SKIP}.")
     await call.answer()
 
 
 @router.message(NewFilter.salary, F.text)
 async def step_salary(message: Message, state: FSMContext) -> None:
-    text = message.text.strip().replace(" ", "")
+    text = message.text.strip().lower().replace(" ", "")
     if text == SKIP:
         salary = None
-    elif text.isdigit():
-        salary = int(text)
-    else:
-        await message.answer(f"Нужно число, например 250000, или {SKIP}.")
+    elif (salary := parse_salary(text)) is None:
+        await message.answer(f"Нужно число, например 250000 или 250к, или {SKIP}.")
         return
     selected = list(SOURCES)
     await state.update_data(salary_min=salary, sources=selected)

@@ -73,3 +73,13 @@ def test_experience():
 def test_same_filters_share_query():
     assert query_for(make_filter()) == query_for(make_filter())
     assert query_for(make_filter()).key != query_for(make_filter(salary_min=1)).key
+
+
+def test_parse_salary():
+    from job_bot.bot.handlers.filters import parse_salary
+
+    assert parse_salary("300") == 300_000
+    assert parse_salary("300к") == 300_000
+    assert parse_salary("250k") == 250_000
+    assert parse_salary("250000") == 250_000
+    assert parse_salary("много") is None

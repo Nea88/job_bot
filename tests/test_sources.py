@@ -64,3 +64,18 @@ def test_content_hash_cross_source():
     a = hh.parse_item({"id": "1", "name": "Python  Developer", "employer": {"name": "Acme"}})
     b = habr.parse_item({"id": 2, "title": "python developer", "company": {"title": "ACME"}})
     assert a.content_hash == b.content_hash
+
+
+async def test_hh_search_uses_work_format():
+    import httpx
+
+    seen = {}
+
+    def handler(request):
+        seen.update(request.url.params)
+        return httpx.Response(200, json={"items": [], "pages": 0})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        await hh.HHSource(http, "ua").search(SearchQuery(keywords_any=("ios",), schedule="remote"), datetime(2026, 10, 9))
+    assert seen["work_format"] == "REMOTE"
+    assert "schedule" not in seen
