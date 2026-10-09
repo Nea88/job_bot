@@ -16,7 +16,7 @@ class LLMError(Exception):
 
 class OllamaClient:
     def __init__(self, url: str, model: str, concurrency: int = 1, timeout: float = 300, num_ctx: int = 4096):
-        self._url = url.rstrip("/")
+        self.url = url.rstrip("/")
         self._model = model
         self._num_ctx = num_ctx
         self._sem = asyncio.Semaphore(concurrency)
@@ -35,7 +35,7 @@ class OllamaClient:
         for attempt in range(2):
             try:
                 async with self._sem:
-                    resp = await self._http.post(f"{self._url}/api/chat", json=payload)
+                    resp = await self._http.post(f"{self.url}/api/chat", json=payload)
                 resp.raise_for_status()
                 return schema.model_validate_json(resp.json()["message"]["content"])
             except (httpx.HTTPError, ValidationError, KeyError) as e:
@@ -45,14 +45,14 @@ class OllamaClient:
 
     async def ensure_model(self) -> None:
         """Pull the model on first start so a fresh install needs no manual `ollama pull`."""
-        resp = await self._http.get(f"{self._url}/api/tags")
+        resp = await self._http.get(f"{self.url}/api/tags")
         resp.raise_for_status()
         names = {m.get("name") for m in resp.json().get("models", [])}
         if self._model in names or f"{self._model}:latest" in names:
             return
         log.info("pulling Ollama model %s, this may take a while...", self._model)
         resp = await self._http.post(
-            f"{self._url}/api/pull", json={"model": self._model, "stream": False}, timeout=None
+            f"{self.url}/api/pull", json={"model": self._model, "stream": False}, timeout=None
         )
         resp.raise_for_status()
         if resp.json().get("status") != "success":

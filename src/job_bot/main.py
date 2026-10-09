@@ -59,26 +59,34 @@ async def start_telegram(settings: Settings) -> TelegramClient | None:
     return client
 
 
-async def resolve_ollama_url(settings: Settings) -> str:
+async def resolve_ollama_url(settings: Settings) -> str | None:
     if settings.ollama_url:
         return settings.ollama_url
     url = await discover_ollama_url()
-    if url is None:
-        log.error("ollama_url is empty and no Ollama add-on was found; set ollama_url in the options")
-        return "http://localhost:11434"
-    log.info("found Ollama add-on at %s", url)
+    if url:
+        log.info("found Ollama add-on at %s", url)
     return url
 
 
-async def llm_worker(llm: OllamaClient, analyzer: Analyzer) -> None:
-    """Make sure the model is available (pulls it on a fresh install), then process the analysis queue."""
+async def llm_worker(settings: Settings, llm: OllamaClient, analyzer: Analyzer) -> None:
+    """Find Ollama and make sure the model is available (pulls it on a fresh install), then analyze.
+
+    Discovery is retried too: the Ollama add-on may be installed or started after the bot.
+    """
     while True:
-        try:
-            await llm.ensure_model()
-            break
-        except Exception as e:
-            log.warning("Ollama is not ready (%s), retrying in %ss", e, MODEL_RETRY_DELAY)
-            await asyncio.sleep(MODEL_RETRY_DELAY)
+        url = await resolve_ollama_url(settings)
+        if url is None:
+            log.warning(
+                "Ollama add-on not found, retrying in %ss; or set ollama_url in the options", MODEL_RETRY_DELAY
+            )
+        else:
+            llm.url = url
+            try:
+                await llm.ensure_model()
+                break
+            except Exception as e:
+                log.warning("Ollama at %s is not ready (%s), retrying in %ss", url, e, MODEL_RETRY_DELAY)
+        await asyncio.sleep(MODEL_RETRY_DELAY)
     await analyzer.backfill()
     await analyzer.run()
 
@@ -92,7 +100,7 @@ async def main() -> None:
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     http = httpx.AsyncClient(timeout=30, follow_redirects=True)
     llm = OllamaClient(
-        await resolve_ollama_url(settings),
+        settings.ollama_url or "http://localhost:11434",
         settings.ollama_model,
         settings.ollama_concurrency,
         settings.ollama_timeout,
@@ -129,7 +137,7 @@ async def main() -> None:
     )
     scheduler.start()
 
-    analyzer_task = asyncio.create_task(llm_worker(llm, analyzer))
+    analyzer_task = asyncio.create_task(llm_worker(settings, llm, analyzer))
 
     try:
         await dp.start_polling(bot)

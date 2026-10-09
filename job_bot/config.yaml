@@ -1,5 +1,5 @@
 name: Job Bot
-version: "0.1.0"
+version: "0.1.1"
 slug: job_bot
 description: Telegram-бот вакансий (hh.ru, Habr Career, Telegram) с тестовыми интервью на локальной LLM
 url: https://github.com/Nea88/job_bot
