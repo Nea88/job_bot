@@ -22,7 +22,7 @@ configuration:
     description: Нужен для hh.ru, формат «Название/1.0 (твой@email)», например «JobBot/1.0 (me@mail.ru)». Шаблонные значения hh блокирует. Пусто — hh.ru отключён.
   hh_access_token:
     name: hh.ru токен приложения
-    description: Токен с dev.hh.ru, если API отвечает 403.
+    description: Обязателен для поиска на hh.ru (без него капча, 403). Получить — scripts/hh_app_token.py, см. документацию.
   tg_api_id:
     name: Telegram API ID
     description: С my.telegram.org — нужен только для чтения каналов.

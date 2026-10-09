@@ -105,3 +105,17 @@ async def test_hh_blacklisted_user_agent():
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
         with pytest.raises(SourceUnavailable):
             await hh.HHSource(http, "Bot/1.0 (a@b.ru)").search(SearchQuery(keywords_any=("ios",)), datetime(2026, 10, 9))
+
+
+async def test_hh_captcha_without_token_is_actionable():
+    import httpx
+    import pytest
+
+    from job_bot.sources.base import SourceUnavailable
+
+    def handler(request):
+        return httpx.Response(403, json={"errors": [{"type": "forbidden"}]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        with pytest.raises(SourceUnavailable, match="hh_access_token"):
+            await hh.HHSource(http, "Bot/1.0 (a@b.ru)").search(SearchQuery(keywords_any=("ios",)), datetime(2026, 10, 9))

@@ -22,7 +22,7 @@ configuration:
     description: Required for hh.ru, "AppName/1.0 (your@email)". hh.ru blacklists placeholders. Empty disables hh.ru.
   hh_access_token:
     name: hh.ru application token
-    description: Token from dev.hh.ru if the API answers 403.
+    description: Required for hh.ru search (captcha/403 without it). Get it with scripts/hh_app_token.py.
   tg_api_id:
     name: Telegram API ID
     description: From my.telegram.org; only needed to read channels.

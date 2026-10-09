@@ -110,6 +110,12 @@ class HHSource:
                 # hh explains rejected params in the body, e.g. {"errors": [{"type": "bad_argument", "value": "..."}]}
                 if "bad_user_agent" in resp.text:
                     raise SourceUnavailable(f"User-Agent {self._user_agent!r} rejected: {USER_AGENT_HELP}")
+                if resp.status_code == 403 and "Authorization" not in self._headers:
+                    # anonymous search gets a captcha after the first request
+                    raise SourceUnavailable(
+                        "hh.ru requires an application token for vacancy search: register an app on "
+                        "https://dev.hh.ru, run scripts/hh_app_token.py and set hh_access_token"
+                    )
                 log.error("hh rejected search %s: %s", resp.url, resp.text[:500])
             resp.raise_for_status()
             data = resp.json()
