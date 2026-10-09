@@ -29,6 +29,7 @@ jobs:
   # The slim Ollama image drops GPU backends; prove the CPU backend still runs a model, natively per arch
   ollama-smoke:
     strategy:
+      fail-fast: false
       matrix:
         runner: [ubuntu-latest, ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
@@ -42,9 +43,10 @@ jobs:
       - name: Run a tiny model
         run: |
           docker run -d --name ollama -p 11434:11434 ollama-slim
-          for i in $(seq 30); do curl -sf localhost:11434/api/version && break; sleep 1; done
-          docker exec ollama ollama pull qwen2.5:0.5b
-          curl -sf localhost:11434/api/generate \
+          for i in $(seq 60); do curl -sf localhost:11434/api/version && break; sleep 1; done
+          # the model download from the Ollama registry is the flaky part
+          for i in 1 2 3; do docker exec ollama ollama pull qwen2.5:0.5b && break; sleep 10; done
+          curl -sf --retry 3 --retry-all-errors --max-time 300 localhost:11434/api/generate \
             -d '{"model":"qwen2.5:0.5b","prompt":"Say hi","stream":false,"options":{"num_predict":8}}' \
             | tee /tmp/out.json
           grep -q '"response":"[^"]' /tmp/out.json
@@ -52,46 +54,26 @@ jobs:
         if: always()
         run: docker logs ollama 2>&1 | tail -50
 
-  build:
-    needs: [lint, test, ollama-smoke]
+  build-job-bot:
+    needs: [lint, test]
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    uses: ./.github/workflows/build-image.yml
+    with:
+      addon: job_bot
+      context: .
+      image: ghcr.io/nea88/job_bot
     permissions:
       contents: read
       packages: write
-    strategy:
-      matrix:
-        include:
-          - addon: job_bot
-            context: .
-            image: ghcr.io/nea88/job_bot
-          - addon: ollama
-            context: ollama
-            image: ghcr.io/nea88/job_bot-ollama
-    steps:
-      - uses: actions/checkout@v5
-      - name: Read add-on version
-        id: version
-        run: echo "version=$(sed -nE 's/^version:[[:space:]]*"?([^"]+)"?/\1/p' ${{ matrix.addon }}/config.yaml)" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: ${{ matrix.context }}
-          platforms: linux/arm64,linux/amd64
-          build-args: OLLAMA_VERSION=${{ steps.version.outputs.version }}
-          push: true
-          tags: |
-            ${{ matrix.image }}:${{ steps.version.outputs.version }}
-            ${{ matrix.image }}:latest
-          labels: |
-            io.hass.type=addon
-            io.hass.version=${{ steps.version.outputs.version }}
-            org.opencontainers.image.source=https://github.com/Nea88/job_bot
-          cache-from: type=gha,scope=${{ matrix.addon }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.addon }}
+
+  build-ollama:
+    needs: [lint, ollama-smoke]
+    if: github.event_name != 'pull_request'
+    uses: ./.github/workflows/build-image.yml
+    with:
+      addon: ollama
+      context: ollama
+      image: ghcr.io/nea88/job_bot-ollama
+    permissions:
+      contents: read
+      packages: write
