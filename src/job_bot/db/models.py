@@ -52,7 +52,7 @@ class Filter(Base):
     experience: Mapped[str | None] = mapped_column(String(20))
     salary_min: Mapped[int | None]
     currency: Mapped[str] = mapped_column(String(8), default="RUR")
-    sources: Mapped[list[str]] = mapped_column(JSON, default=lambda: ["hh", "habr", "telegram"])
+    sources: Mapped[list[str]] = mapped_column(JSON, default=lambda: ["hh", "habr", "hirify", "telegram"])
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     user: Mapped[User] = relationship(back_populates="filters", lazy="selectin")

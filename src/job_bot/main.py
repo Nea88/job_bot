@@ -25,6 +25,7 @@ from job_bot.pipeline.analyze import Analyzer
 from job_bot.pipeline.collect import Collector
 from job_bot.sources.habr import HabrSource
 from job_bot.sources.hh import HHSource
+from job_bot.sources.hirify import HirifySource
 from job_bot.sources.telegram import TelegramSource
 
 log = logging.getLogger("job_bot")
@@ -116,6 +117,7 @@ async def main() -> None:
         sources=[hh, HabrSource(http)],
         telegram=TelegramSource(tg_client) if tg_client else None,
         analyzer=analyzer,
+        hirify=HirifySource(http),
     )
     interviews = InterviewService(sm, llm)
 

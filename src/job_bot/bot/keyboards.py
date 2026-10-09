@@ -12,7 +12,7 @@ EXPERIENCES = {
     "moreThan6": "6+ лет",
     "any": "Любой",
 }
-SOURCES = {"hh": "hh.ru", "habr": "Habr Career", "telegram": "Telegram-каналы"}
+SOURCES = {"hh": "hh.ru", "habr": "Habr Career", "hirify": "Hirify", "telegram": "Telegram-каналы"}
 
 
 class FilterCb(CallbackData, prefix="flt"):

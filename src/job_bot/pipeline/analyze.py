@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from job_bot.db.models import Requirement, Vacancy, utcnow
+from job_bot.db.models import Requirement, Sent, Vacancy, utcnow
 from job_bot.llm.ollama import LLMError, OllamaClient
 from job_bot.llm.prompts import EXTRACT_SYSTEM, EXTRACT_USER
 from job_bot.llm.schemas import Extraction
@@ -32,10 +32,12 @@ class Analyzer:
                 self._queue.put_nowait(vid)
 
     async def backfill(self) -> None:
-        """Re-queue vacancies left unanalyzed (restart, LLM was down)."""
+        """Re-queue vacancies left unanalyzed (restart, LLM was down); only ones sent to someone."""
         async with self._sm() as session:
             ids = await session.scalars(
-                select(Vacancy.id).where(Vacancy.analyzed_at.is_(None)).order_by(Vacancy.id.desc())
+                select(Vacancy.id)
+                .where(Vacancy.analyzed_at.is_(None), Vacancy.id.in_(select(Sent.vacancy_id)))
+                .order_by(Vacancy.id.desc())
             )
             self.enqueue(ids)
 

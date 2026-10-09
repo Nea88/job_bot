@@ -29,8 +29,11 @@ class RawVacancy:
         """Cross-source dedup key: same title at the same company is the same vacancy."""
         if self.company:
             key = f"{_norm(self.title)}|{_norm(self.company)}"
-        else:
+        elif len(self.description) >= 100:
             key = _norm(self.description[:500])
+        else:
+            # too little text to recognise a duplicate: never collapse distinct vacancies
+            key = f"{self.source}:{self.external_id}"
         return hashlib.sha1(key.encode()).hexdigest()
 
     def as_model_kwargs(self) -> dict:

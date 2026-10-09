@@ -13,9 +13,10 @@ from job_bot.bot.formatting import format_digest, format_vacancy
 from job_bot.bot.keyboards import vacancy_kb
 from job_bot.db.models import Filter, Sent, SourceState, TgChannel, User, Vacancy, utcnow
 from job_bot.db.repo import active_filters
-from job_bot.matching import matches, query_for
+from job_bot.matching import contains, matches, query_for
 from job_bot.pipeline.analyze import Analyzer
 from job_bot.sources.base import RawVacancy, Source
+from job_bot.sources.hirify import HirifySource
 from job_bot.sources.telegram import TelegramSource
 
 log = logging.getLogger(__name__)
@@ -26,6 +27,16 @@ MAX_CARDS_PER_RUN = 10
 SEND_DELAY = 0.05  # stay well under Telegram's ~30 msg/s
 
 
+def _worth_fetching(raw: RawVacancy, filters: list[Filter], source: str) -> bool:
+    """Cheap pre-check on listing data for sources that return every profession: skip the detail
+    request unless some filter's keyword is already in the title or tags."""
+    text = f"{raw.title}\n{raw.description}".lower()
+    return any(
+        source in f.sources and any(contains(text, k) for k in [*f.keywords_any, *f.keywords_all])
+        for f in filters
+    )
+
+
 class Collector:
     def __init__(
         self,
@@ -34,11 +45,13 @@ class Collector:
         sources: list[Source],
         telegram: TelegramSource | None,
         analyzer: Analyzer,
+        hirify: HirifySource | None = None,
     ):
         self._sm = sm
         self._bot = bot
         self._sources = sources
         self._telegram = telegram
+        self._hirify = hirify
         self._analyzer = analyzer
         self._lock = asyncio.Lock()
 
@@ -60,12 +73,19 @@ class Collector:
                     except Exception:
                         # one broken source/query must not stop the rest
                         log.exception("%s: query failed", source.name)
+            if self._hirify and any("hirify" in f.sources for f in filters):
+                try:
+                    raws = [r for r in await self._hirify.fetch_latest() if _worth_fetching(r, filters, "hirify")]
+                    new_ids += await self._store(raws, self._hirify.enrich)
+                except Exception:
+                    log.exception("hirify: collection failed")
             if self._telegram and any("telegram" in f.sources for f in filters):
                 new_ids += await self._collect_telegram()
 
             log.info("collected %d new vacancies", len(new_ids))
-            await self._notify(new_ids)
-            self._analyzer.enqueue(new_ids)
+            matched = await self._notify(new_ids)
+            # the LLM is slow (about a minute per vacancy on a Pi): analyze only what someone subscribed to
+            self._analyzer.enqueue(matched)
             await self._analyzer.backfill()
             return len(new_ids)
 
@@ -142,9 +162,10 @@ class Collector:
                 ids.append(vacancy.id)
         return ids
 
-    async def _notify(self, vacancy_ids: list[int]) -> None:
+    async def _notify(self, vacancy_ids: list[int]) -> list[int]:
+        """Send matches to users; returns ids of vacancies that matched at least one filter."""
         if not vacancy_ids:
-            return
+            return []
         async with self._sm() as session:
             vacancies = list(
                 await session.scalars(
@@ -169,6 +190,7 @@ class Collector:
 
         for user_id, items in per_user.items():
             await self._send_to_user(user_id, items[0][0].user.tg_id, items)
+        return sorted({v.id for items in per_user.values() for _, v in items})
 
     async def _send_to_user(self, user_id: int, tg_id: int, items: list[tuple[Filter, Vacancy]]) -> None:
         cards, rest = items[:MAX_CARDS_PER_RUN], items[MAX_CARDS_PER_RUN:]

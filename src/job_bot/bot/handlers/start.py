@@ -8,7 +8,7 @@ from job_bot.db.repo import get_or_create_user
 router = Router()
 
 HELP = """\
-Я раз в час собираю вакансии с hh.ru, Habr Career и Telegram-каналов по твоим фильтрам \
+Я раз в час собираю вакансии с hh.ru, Habr Career, Hirify и Telegram-каналов по твоим фильтрам \
 и присылаю новые. Параллельно анализирую требования и могу собрать тестовое интервью \
 по самым востребованным навыкам.
 
