@@ -7,8 +7,6 @@ arch:
   - aarch64
   - amd64
 image: ghcr.io/nea88/job_bot
-startup: application
-boot: auto
 hassio_api: true
 options:
   bot_token: ""

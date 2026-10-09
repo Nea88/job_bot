@@ -1,4 +1,4 @@
-name: Test and publish add-on image
+name: Test and publish add-on images
 
 on:
   push:
@@ -13,7 +13,7 @@ jobs:
       matrix:
         addon: [job_bot, ollama]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: frenck/action-addon-linter@v2
         with:
           path: ./${{ matrix.addon }}
@@ -21,23 +21,58 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --frozen
       - run: uv run pytest -q
 
+  # The slim Ollama image drops GPU backends; prove the CPU backend still runs a model, natively per arch
+  ollama-smoke:
+    strategy:
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build
+        run: |
+          version=$(sed -nE 's/^version:[[:space:]]*"?([^"]+)"?/\1/p' ollama/config.yaml)
+          docker build --build-arg OLLAMA_VERSION="$version" -t ollama-slim ollama/
+          docker image ls ollama-slim
+      - name: Run a tiny model
+        run: |
+          docker run -d --name ollama -p 11434:11434 ollama-slim
+          for i in $(seq 30); do curl -sf localhost:11434/api/version && break; sleep 1; done
+          docker exec ollama ollama pull qwen2.5:0.5b
+          curl -sf localhost:11434/api/generate \
+            -d '{"model":"qwen2.5:0.5b","prompt":"Say hi","stream":false,"options":{"num_predict":8}}' \
+            | tee /tmp/out.json
+          grep -q '"response":"[^"]' /tmp/out.json
+      - name: Logs
+        if: always()
+        run: docker logs ollama 2>&1 | tail -50
+
   build:
-    needs: [lint, test]
+    needs: [lint, test, ollama-smoke]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        include:
+          - addon: job_bot
+            context: .
+            image: ghcr.io/nea88/job_bot
+          - addon: ollama
+            context: ollama
+            image: ghcr.io/nea88/job_bot-ollama
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Read add-on version
         id: version
-        run: echo "version=$(sed -nE 's/^version:[[:space:]]*\"?([^\"]+)\"?/\1/p' job_bot/config.yaml)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(sed -nE 's/^version:[[:space:]]*"?([^"]+)"?/\1/p' ${{ matrix.addon }}/config.yaml)" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -47,15 +82,16 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
-          context: .
+          context: ${{ matrix.context }}
           platforms: linux/arm64,linux/amd64
+          build-args: OLLAMA_VERSION=${{ steps.version.outputs.version }}
           push: true
           tags: |
-            ghcr.io/nea88/job_bot:${{ steps.version.outputs.version }}
-            ghcr.io/nea88/job_bot:latest
+            ${{ matrix.image }}:${{ steps.version.outputs.version }}
+            ${{ matrix.image }}:latest
           labels: |
             io.hass.type=addon
             io.hass.version=${{ steps.version.outputs.version }}
             org.opencontainers.image.source=https://github.com/Nea88/job_bot
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.addon }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.addon }}
