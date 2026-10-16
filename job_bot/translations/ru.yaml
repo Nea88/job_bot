@@ -25,9 +25,9 @@ configuration:
     description: Обязателен для поиска на hh.ru (без него капча, 403). Получить — scripts/hh_app_token.py, см. документацию.
   tg_api_id:
     name: Telegram API ID
-    description: С my.telegram.org — нужен только для чтения каналов.
+    description: С my.telegram.org → API development tools; нужен только для чтения каналов. После него — /tglogin в боте.
   tg_api_hash:
     name: Telegram API hash
   tg_session_string:
     name: Telegram-сессия
-    description: Вывод команды scripts/telethon_login.py --string.
+    description: Не обязательно — проще войти командой /tglogin в боте. Либо вывод scripts/telethon_login.py --string.

@@ -30,4 +30,4 @@ configuration:
     name: Telegram API hash
   tg_session_string:
     name: Telegram session
-    description: Output of scripts/telethon_login.py --string.
+    description: Optional — easier to sign in with /tglogin in the bot. Or the output of scripts/telethon_login.py --string.

@@ -50,7 +50,8 @@ class Collector:
         self._sm = sm
         self._bot = bot
         self._sources = sources
-        self._telegram = telegram
+        # public: /tglogin enables the source at runtime
+        self.telegram = telegram
         self._hirify = hirify
         self._analyzer = analyzer
         self._lock = asyncio.Lock()
@@ -82,7 +83,7 @@ class Collector:
                     new_ids += await self._store(raws, self._hirify.enrich)
                 except Exception:
                     log.exception("hirify: collection failed")
-            if self._telegram and any("telegram" in f.sources for f in filters):
+            if self.telegram and any("telegram" in f.sources for f in filters):
                 new_ids += await self._collect_telegram()
 
             log.info("collected %d new vacancies", len(new_ids))
@@ -115,13 +116,13 @@ class Collector:
         return ids
 
     async def _collect_telegram(self) -> list[int]:
-        assert self._telegram is not None
+        assert self.telegram is not None
         async with self._sm() as session:
             channels = list(await session.scalars(select(TgChannel)))
         ids: list[int] = []
         for ch in channels:
             try:
-                raws, newest = await self._telegram.fetch_channel(ch.username, ch.last_message_id)
+                raws, newest = await self.telegram.fetch_channel(ch.username, ch.last_message_id)
             except Exception:
                 log.exception("telegram: failed to read @%s", ch.username)
                 continue

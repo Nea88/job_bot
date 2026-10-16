@@ -25,7 +25,7 @@ uv run job-bot
 ```
 
 Telegram-каналы (опционально): заполнить `TG_API_ID`/`TG_API_HASH` (https://my.telegram.org),
-один раз выполнить `uv run python scripts/telethon_login.py` (или с `--string` для аддона HA), затем админом: `/channels add <username>`.
+затем админом отправить боту `/tglogin` (или один раз выполнить `uv run python scripts/telethon_login.py`) и добавить каналы: `/channels add t.me/name`.
 
 ## Docker
 

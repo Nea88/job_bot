@@ -65,7 +65,7 @@ class TelegramSource:
     name = "telegram"
 
     def __init__(self, client: TelegramClient):
-        self._client = client
+        self.client = client
 
     async def fetch_channel(self, channel: str, last_message_id: int) -> tuple[list[RawVacancy], int]:
         """Returns new vacancy posts and the newest message id seen."""
@@ -73,7 +73,7 @@ class TelegramSource:
         newest = last_message_id
         kwargs = {"min_id": last_message_id} if last_message_id else {"limit": FIRST_RUN_LIMIT}
         msg: Message
-        async for msg in self._client.iter_messages(channel, **kwargs):
+        async for msg in self.client.iter_messages(channel, **kwargs):
             newest = max(newest, msg.id)
             text = msg.message or ""
             if looks_like_vacancy(text):

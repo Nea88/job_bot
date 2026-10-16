@@ -51,14 +51,17 @@ async def start_telegram(settings: Settings) -> TelegramClient | None:
     if not (settings.tg_api_id and settings.tg_api_hash):
         log.info("TG_API_ID/TG_API_HASH not set: Telegram channels source disabled")
         return None
-    session = StringSession(settings.tg_session_string) if settings.tg_session_string else settings.tg_session
-    client = TelegramClient(session, settings.tg_api_id, settings.tg_api_hash)
-    await client.connect()
-    if not await client.is_user_authorized():
-        log.warning("Telethon session is not authorized; run `python scripts/telethon_login.py [--string]` first")
+    # a session string from the options wins; otherwise the file session written by /tglogin
+    sessions = [StringSession(settings.tg_session_string)] if settings.tg_session_string else []
+    sessions.append(settings.tg_session)
+    for session in sessions:
+        client = TelegramClient(session, settings.tg_api_id, settings.tg_api_hash)
+        await client.connect()
+        if await client.is_user_authorized():
+            return client
         await client.disconnect()
-        return None
-    return client
+    log.warning("Telegram account is not signed in: send /tglogin to the bot to read channels")
+    return None
 
 
 async def resolve_ollama_url(settings: Settings) -> str | None:
@@ -148,8 +151,8 @@ async def main() -> None:
     finally:
         scheduler.shutdown(wait=False)
         analyzer_task.cancel()
-        if tg_client:
-            await tg_client.disconnect()
+        if collector.telegram:  # may have been replaced by /tglogin
+            await collector.telegram.client.disconnect()
         await llm.close()
         await http.aclose()
         await bot.session.close()
