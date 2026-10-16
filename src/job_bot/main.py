@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from telethon import TelegramClient
 from telethon.sessions import StringSession
 
+from job_bot.bot.commands import setup_commands
 from job_bot.bot.handlers import build_router
 from job_bot.bot.handlers.interview import send_interview
 from job_bot.config import Settings, get_settings
@@ -142,6 +143,7 @@ async def main() -> None:
     analyzer_task = asyncio.create_task(llm_worker(settings, llm, analyzer))
 
     try:
+        await setup_commands(bot, settings.admin_ids)
         await dp.start_polling(bot)
     finally:
         scheduler.shutdown(wait=False)
