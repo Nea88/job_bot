@@ -3,14 +3,18 @@
 The session is saved to the file session in data_dir and picked up again on restart.
 """
 
+import asyncio
+import io
 import logging
 import re
 
-from aiogram import F, Router
+import segno
+
+from aiogram import Bot, F, Router
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message
+from aiogram.types import BufferedInputFile, Message
 from telethon import TelegramClient, errors
 from telethon.tl.types import auth
 
@@ -29,6 +33,15 @@ class TgLogin(StatesGroup):
     phone = State()
     code = State()
     password = State()
+    qr = State()
+
+
+QR_ATTEMPTS = 6  # each QR token lives ~30 s, so about 3 minutes in total
+QR_HELP = (
+    "Открой Telegram на телефоне с нужным аккаунтом → Настройки → Устройства → "
+    "«Подключить устройство» и отсканируй код. Его нужно показать на другом экране "
+    "(Telegram Desktop или web.telegram.org) или открыть ссылку на устройстве, где этот аккаунт уже открыт."
+)
 
 
 def normalize_phone(text: str) -> str | None:
@@ -81,7 +94,7 @@ def describe_sent(sent) -> tuple[str, bool]:
         )
     else:
         where = f"способом {type(kind).__name__}."
-    text = "Код отправлен " + where
+    text = "Код отправлен " + where + "\nКод так и не пришёл? Войди по QR-коду: /tgqr"
     if sent.next_type is not None:
         alt = NEXT_TYPE.get(type(sent.next_type), "другим способом")
         wait = f" через {sent.timeout} с" if sent.timeout else ""
@@ -150,25 +163,105 @@ async def resend_code(message: Message, state: FSMContext) -> None:
     await message.answer(text + CODE_HINT)
 
 
-@router.message(Command("tglogin"))
-async def cmd_tglogin(message: Message, state: FSMContext, settings: Settings, collector: Collector) -> None:
-    if message.from_user.id not in settings.admin_ids:
+def qr_png(url: str) -> bytes:
+    buf = io.BytesIO()
+    segno.make(url, error="m").save(buf, kind="png", scale=8, border=3)
+    return buf.getvalue()
+
+
+@router.message(Command("tgqr"))
+async def cmd_tgqr(message: Message, bot: Bot, state: FSMContext, settings: Settings, collector: Collector) -> None:
+    if not await _can_start_login(message, settings, collector):
         return
+    await _drop_pending(message.from_user.id)
+    client = TelegramClient(settings.tg_session, settings.tg_api_id, settings.tg_api_hash)
+    await client.connect()
+    try:
+        qr = await client.qr_login()
+    except Exception as e:
+        await client.disconnect()
+        log.exception("tglogin: qr_login failed")
+        await message.answer(f"Telegram вернул ошибку: {type(e).__name__}: {e}")
+        return
+    _pending[message.from_user.id] = client
+    await state.set_state(TgLogin.qr)
+    task = asyncio.create_task(_qr_loop(message, bot, state, client, qr, collector))
+    _tasks.add(task)
+    task.add_done_callback(_tasks.discard)
+
+
+_tasks: set[asyncio.Task] = set()
+
+
+async def _qr_loop(message: Message, bot: Bot, state: FSMContext, client: TelegramClient, qr, collector: Collector) -> None:
+    """Show a fresh QR while waiting for a scan: tokens expire after ~30 seconds."""
+    chat_id = message.chat.id
+    shown = None
+    try:
+        for attempt in range(QR_ATTEMPTS):
+            if attempt:
+                await qr.recreate()
+            caption = f"{QR_HELP}\n\nИли ссылка: <code>{qr.url}</code>\n\n/cancel — отменить"
+            photo = BufferedInputFile(qr_png(qr.url), filename="login.png")
+            if shown is not None:
+                await bot.delete_message(chat_id, shown.message_id)
+            shown = await bot.send_photo(chat_id, photo, caption=caption)
+            try:
+                await qr.wait()
+            except asyncio.TimeoutError:
+                if await state.get_state() != TgLogin.qr.state:  # cancelled meanwhile
+                    return
+                continue
+            except errors.SessionPasswordNeededError:
+                await state.set_state(TgLogin.password)
+                await bot.send_message(chat_id, "QR принят. Включена двухэтапная проверка — отправь облачный пароль, сообщение удалю сразу.")
+                return
+            await _finish(message, state, client, collector)
+            return
+        await _drop_pending(message.from_user.id)
+        await state.clear()
+        await bot.send_message(chat_id, "QR-код так и не отсканировали. Попробуй ещё раз: /tgqr")
+    except Exception as e:
+        if await state.get_state() != TgLogin.qr.state:  # /cancel disconnected the client
+            return
+        log.exception("tglogin: QR login failed")
+        await _drop_pending(message.from_user.id)
+        await state.clear()
+        await bot.send_message(chat_id, f"Вход по QR не удался: {type(e).__name__}: {e}")
+    finally:
+        if shown is not None:
+            try:
+                await bot.delete_message(chat_id, shown.message_id)
+            except Exception:
+                pass
+
+
+async def _can_start_login(message: Message, settings: Settings, collector: Collector) -> bool:
+    if message.from_user.id not in settings.admin_ids:
+        return False
     if not (settings.tg_api_id and settings.tg_api_hash):
         await message.answer(
             "Сначала укажи tg_api_id и tg_api_hash в настройках аддона: их выдаёт https://my.telegram.org → "
             "API development tools. Потом перезапусти аддон и снова отправь /tglogin."
         )
-        return
+        return False
     if collector.telegram is not None and await collector.telegram.client.is_user_authorized():
         me = await collector.telegram.client.get_me()
         await message.answer(f"Уже выполнен вход как @{me.username or me.first_name}. Каналы: /channels")
+        return False
+    return True
+
+
+@router.message(Command("tglogin"))
+async def cmd_tglogin(message: Message, state: FSMContext, settings: Settings, collector: Collector) -> None:
+    if not await _can_start_login(message, settings, collector):
         return
     await _drop_pending(message.from_user.id)
     await state.set_state(TgLogin.phone)
     await message.answer(
         "Вход в Telegram-аккаунт, через который бот будет читать каналы (/cancel — отменить).\n\n"
-        "Отправь номер телефона этого аккаунта, например +7 900 123-45-67."
+        "Отправь номер телефона этого аккаунта, например +7 900 123-45-67.\n"
+        "Или войди по QR-коду без кода из SMS: /tgqr"
     )
 
 

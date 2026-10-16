@@ -27,6 +27,7 @@ CONTEXT_COMMANDS = {"resend"}
 ADMIN_COMMANDS = [
     ("channels", "Telegram-каналы: /channels add|remove t.me/name"),
     ("tglogin", "Войти в Telegram-аккаунт для чтения каналов"),
+    ("tgqr", "Войти в Telegram-аккаунт по QR-коду"),
     ("run_now", "Собрать вакансии прямо сейчас"),
 ]
 

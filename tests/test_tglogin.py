@@ -181,3 +181,106 @@ async def test_unexpected_send_error_is_reported(env, monkeypatch):
     phone = Msg("+79001234567")
     await tl.step_phone(phone, state, settings)
     assert "RuntimeError" in phone.replies[0] and await state.get_state() is None
+
+
+class FakeQR:
+    def __init__(self, outcomes):
+        self.outcomes = list(outcomes)  # per wait(): "timeout", "ok", "2fa"
+        self.url = "tg://login?token=abc"
+        self.recreated = 0
+
+    async def recreate(self):
+        self.recreated += 1
+        self.url = f"tg://login?token=abc{self.recreated}"
+
+    async def wait(self, timeout=None):
+        import asyncio
+
+        outcome = self.outcomes.pop(0)
+        if outcome == "timeout":
+            raise asyncio.TimeoutError
+        if outcome == "2fa":
+            raise errors.SessionPasswordNeededError(request=None)
+
+
+class FakeBot:
+    def __init__(self):
+        self.photos, self.messages, self.deleted = [], [], []
+
+    async def send_photo(self, chat_id, photo, caption=None):
+        self.photos.append(caption)
+        return SimpleNamespace(message_id=len(self.photos))
+
+    async def send_message(self, chat_id, text, **kw):
+        self.messages.append(text)
+
+    async def delete_message(self, chat_id, message_id):
+        self.deleted.append(message_id)
+
+
+def qr_msg():
+    m = Msg("/tgqr")
+    m.chat = SimpleNamespace(id=1)
+    return m
+
+
+def test_qr_png():
+    assert tl.qr_png("tg://login?token=abc").startswith(b"\x89PNG")
+
+
+async def test_qr_login_refreshes_and_succeeds(env, monkeypatch):
+    state, settings, collector = env
+    qr = FakeQR(["timeout", "ok"])
+
+    async def qr_login(self):
+        return qr
+
+    monkeypatch.setattr(FakeClient, "qr_login", qr_login, raising=False)
+    bot, msg = FakeBot(), qr_msg()
+    await tl.cmd_tgqr(msg, bot, state, settings, collector)
+    await next(iter(tl._tasks))
+    assert qr.recreated == 1 and len(bot.photos) == 2 and "abc1" in bot.photos[1]
+    assert bot.deleted == [1, 2]  # stale and final QR removed
+    assert collector.telegram is not None and "Готово" in msg.replies[-1]
+    assert await state.get_state() is None
+
+
+async def test_qr_login_with_2fa_asks_password(env, monkeypatch):
+    state, settings, collector = env
+
+    async def qr_login(self):
+        return FakeQR(["2fa"])
+
+    monkeypatch.setattr(FakeClient, "qr_login", qr_login, raising=False)
+    bot, msg = FakeBot(), qr_msg()
+    await tl.cmd_tgqr(msg, bot, state, settings, collector)
+    await next(iter(tl._tasks))
+    assert await state.get_state() == tl.TgLogin.password.state
+    password = Msg("secret")
+    await tl.step_password(password, state, collector)
+    assert collector.telegram is not None
+
+
+async def test_qr_cancel_is_silent(env, monkeypatch):
+    import asyncio
+
+    state, settings, collector = env
+    started = asyncio.Event()
+
+    class SlowQR(FakeQR):
+        async def wait(self, timeout=None):
+            started.set()
+            await asyncio.sleep(0.05)
+            raise ConnectionError("disconnected")
+
+    async def qr_login(self):
+        return SlowQR([])
+
+    monkeypatch.setattr(FakeClient, "qr_login", qr_login, raising=False)
+    bot, msg = FakeBot(), qr_msg()
+    await tl.cmd_tgqr(msg, bot, state, settings, collector)
+    task = next(iter(tl._tasks))
+    await started.wait()
+    await tl.cancel_login(Msg("/cancel"), state)
+    await task
+    assert bot.messages == []
