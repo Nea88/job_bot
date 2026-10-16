@@ -3,7 +3,8 @@ from pathlib import Path
 from sqlalchemy import event, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
-from job_bot.db.models import Base, Filter
+from job_bot.db.models import Base, Filter, TgChannel
+from job_bot.sources.telegram import parse_channel
 
 
 async def init_db(db_url: str) -> tuple[AsyncEngine, async_sessionmaker]:
@@ -28,6 +29,7 @@ async def init_db(db_url: str) -> tuple[AsyncEngine, async_sessionmaker]:
         await conn.execute(update(Filter).where(Filter.salary_min < 1000).values(salary_min=Filter.salary_min * 1000))
     sm = async_sessionmaker(engine, expire_on_commit=False)
     await _add_new_sources(sm)
+    await _normalize_channels(sm)
     return engine, sm
 
 
@@ -37,4 +39,23 @@ async def _add_new_sources(sm: async_sessionmaker) -> None:
         for f in await session.scalars(select(Filter)):
             if {"hh", "habr", "telegram"} <= set(f.sources) and "hirify" not in f.sources:
                 f.sources = [*f.sources, "hirify"]
+        await session.commit()
+
+
+async def _normalize_channels(sm: async_sessionmaker) -> None:
+    """Before 0.2.4 links like "t.me/name" were stored verbatim; keep only clean, unique usernames."""
+    async with sm() as session:
+        seen: set[str] = set()
+        channels = list(await session.scalars(select(TgChannel).order_by(TgChannel.id)))
+        # clean rows first, so a dirty duplicate is deleted rather than renamed onto a taken name
+        channels.sort(key=lambda c: parse_channel(c.username) != c.username)
+        for ch in channels:
+            username = parse_channel(ch.username)
+            if username is None or username in seen:
+                await session.delete(ch)
+                continue
+            seen.add(username)
+            if ch.username != username:
+                ch.username = username
+                ch.last_message_id = 0
         await session.commit()

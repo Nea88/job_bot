@@ -36,4 +36,4 @@ def test_help_is_valid_telegram_html():
     text = help_text(is_admin=True)
     # only tags Telegram supports may appear; "<username>" must arrive escaped
     assert re.findall(r"</?([a-z]+)", text) == ["b", "b"]
-    assert "&lt;username&gt;" in text
+    assert "/channels" in text

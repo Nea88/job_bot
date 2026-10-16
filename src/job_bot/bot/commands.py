@@ -22,7 +22,7 @@ USER_COMMANDS = [
 ]
 
 ADMIN_COMMANDS = [
-    ("channels", "Telegram-каналы: /channels add|remove <username>"),
+    ("channels", "Telegram-каналы: /channels add|remove t.me/name"),
     ("run_now", "Собрать вакансии прямо сейчас"),
 ]
 

@@ -17,6 +17,26 @@ VACANCY_MARKERS = (
 )
 REMOTE_MARKERS = ("удален", "удалён", "remote")
 
+# t.me/name, https://t.me/name, telegram.me/name, t.me/s/name, t.me/name/123, @name, name
+_CHANNEL = re.compile(
+    r"^(?:(?:https?://)?(?:www\.)?(?:t|telegram)\.me/(?:s/)?)?@?([A-Za-z][A-Za-z0-9_]{3,31})(?:/\d+)?/?(?:\?.*)?$"
+)
+_INVITE = re.compile(r"(?:t|telegram)\.me/(?:\+|joinchat/)", re.I)
+
+
+def is_invite_link(text: str) -> bool:
+    return bool(_INVITE.search(text))
+
+
+def parse_channel(text: str) -> str | None:
+    """Channel username from a link or @mention; None for invite links and garbage."""
+    text = text.strip()
+    if _INVITE.search(text):
+        return None
+    match = _CHANNEL.match(text)
+    # Telegram usernames are case-insensitive
+    return match.group(1).lower() if match else None
+
 
 def looks_like_vacancy(text: str) -> bool:
     lower = text.lower()

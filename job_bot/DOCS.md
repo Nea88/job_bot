@@ -31,7 +31,7 @@
    uv run python scripts/telethon_login.py --string
    ```
 3. Вставь `tg_api_id`, `tg_api_hash` и полученную строку в `tg_session_string`, перезапусти аддон.
-4. Добавь каналы командой `/channels add <username>`.
+4. Добавь каналы командой `/channels add t.me/name` (можно несколько через пробел, подойдут и `@name`, и полная ссылка).
 
 ## hh.ru
 
