@@ -1,7 +1,7 @@
 import re
 from pathlib import Path
 
-from job_bot.bot.commands import ADMIN_COMMANDS, USER_COMMANDS, help_text
+from job_bot.bot.commands import ADMIN_COMMANDS, CONTEXT_COMMANDS, USER_COMMANDS, help_text
 
 HANDLERS = Path(__file__).parent.parent / "src/job_bot/bot/handlers"
 
@@ -16,7 +16,7 @@ def registered_commands() -> set[str]:
 
 def test_menu_lists_every_handled_command():
     menu = {name for name, _ in USER_COMMANDS + ADMIN_COMMANDS}
-    assert menu == registered_commands()
+    assert menu | CONTEXT_COMMANDS == registered_commands()
 
 
 def test_menu_command_constraints():

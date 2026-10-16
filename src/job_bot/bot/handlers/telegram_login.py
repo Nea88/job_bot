@@ -12,6 +12,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
 from telethon import TelegramClient, errors
+from telethon.tl.types import auth
 
 from job_bot.config import Settings
 from job_bot.pipeline.collect import Collector
@@ -39,7 +40,53 @@ def normalize_phone(text: str) -> str | None:
 
 def normalize_code(text: str) -> str | None:
     digits = re.sub(r"\D", "", text)
-    return digits if 5 <= len(digits) <= 6 else None
+    return digits if 4 <= len(digits) <= 8 else None
+
+
+NEXT_TYPE = {
+    auth.CodeTypeSms: "по SMS",
+    auth.CodeTypeCall: "звонком",
+    auth.CodeTypeFlashCall: "звонком-сбросом",
+    auth.CodeTypeMissedCall: "пропущенным звонком",
+    auth.CodeTypeFragmentSms: "SMS через Fragment",
+}
+
+
+def describe_sent(sent) -> tuple[str, bool]:
+    """Where Telegram delivered the login code, and whether a code is expected at all."""
+    kind = sent.type
+    if isinstance(kind, auth.SentCodeTypeApp):
+        where = (
+            "в приложение Telegram — в служебный чат «Telegram» (с синей галочкой) на устройствах, "
+            "где уже открыт этот аккаунт. Это не SMS."
+        )
+    elif isinstance(kind, (auth.SentCodeTypeSms, auth.SentCodeTypeSmsWord, auth.SentCodeTypeSmsPhrase,
+                           auth.SentCodeTypeFirebaseSms)):
+        where = "по SMS на этот номер."
+    elif isinstance(kind, auth.SentCodeTypeFragmentSms):
+        where = f"через Fragment: {kind.url}"
+    elif isinstance(kind, auth.SentCodeTypeCall):
+        where = "голосовым звонком: код продиктуют."
+    elif isinstance(kind, auth.SentCodeTypeMissedCall):
+        where = f"пропущенным звонком: код — последние {kind.length} цифр номера, с которого позвонят (+{kind.prefix}…)."
+    elif isinstance(kind, auth.SentCodeTypeFlashCall):
+        where = "звонком-сбросом: код — цифры номера, с которого позвонят."
+    elif isinstance(kind, auth.SentCodeTypeEmailCode):
+        where = f"на почту {kind.email_pattern}."
+    elif isinstance(kind, auth.SentCodeTypeSetUpEmailRequired):
+        return (
+            "Telegram не отправил код: он требует сначала привязать почту для входа. В приложении Telegram на "
+            "этом аккаунте: Настройки → Конфиденциальность → Почта для входа. Потом снова /tglogin.",
+            False,
+        )
+    else:
+        where = f"способом {type(kind).__name__}."
+    text = "Код отправлен " + where
+    if sent.next_type is not None:
+        alt = NEXT_TYPE.get(type(sent.next_type), "другим способом")
+        wait = f" через {sent.timeout} с" if sent.timeout else ""
+        text += f"\nНе пришёл? Отправь /resend{wait} — Telegram пришлёт код {alt}."
+    return text, True
 
 
 async def _forget(message: Message) -> None:
@@ -78,6 +125,31 @@ async def cancel_login(message: Message, state: FSMContext) -> None:
     await message.answer("Вход отменён.")
 
 
+@router.message(Command("resend"), TgLogin.code)
+async def resend_code(message: Message, state: FSMContext) -> None:
+    client = _pending.get(message.from_user.id)
+    if client is None:
+        await state.clear()
+        await message.answer("Сессия входа потерялась (бот перезапускался?). Начни заново: /tglogin")
+        return
+    data = await state.get_data()
+    try:
+        # with a code hash cached for this phone Telethon sends auth.resendCode
+        sent = await client.send_code_request(data["phone"])
+    except Exception as e:
+        await _drop_pending(message.from_user.id)
+        await _report_send_error(message, state, e)
+        return
+    text, expect_code = describe_sent(sent)
+    if not expect_code:
+        await _drop_pending(message.from_user.id)
+        await state.clear()
+        await message.answer(text)
+        return
+    await state.update_data(phone_code_hash=sent.phone_code_hash)
+    await message.answer(text + CODE_HINT)
+
+
 @router.message(Command("tglogin"))
 async def cmd_tglogin(message: Message, state: FSMContext, settings: Settings, collector: Collector) -> None:
     if message.from_user.id not in settings.admin_ids:
@@ -110,23 +182,42 @@ async def step_phone(message: Message, state: FSMContext, settings: Settings) ->
     await client.connect()
     try:
         sent = await client.send_code_request(phone)
-    except errors.PhoneNumberInvalidError:
+    except Exception as e:
         await client.disconnect()
-        await message.answer("Telegram не принял этот номер. Проверь и отправь ещё раз.")
+        await _report_send_error(message, state, e)
         return
-    except errors.FloodWaitError as e:
+    text, expect_code = describe_sent(sent)
+    if not expect_code:
         await client.disconnect()
         await state.clear()
-        await message.answer(f"Telegram просит подождать {e.seconds} с перед новой попыткой входа.")
+        await message.answer(text)
         return
     _pending[message.from_user.id] = client
     await state.update_data(phone=phone, phone_code_hash=sent.phone_code_hash)
     await state.set_state(TgLogin.code)
-    await message.answer(
-        "Код отправлен в Telegram (в чат «Telegram» на этом аккаунте).\n\n"
-        "⚠️ Пришли его <b>с пробелами</b>, например <code>1 2 3 4 5</code>: "
-        "если отправить код целиком, Telegram сочтёт его утёкшим и аннулирует."
-    )
+    await message.answer(text + CODE_HINT)
+
+
+CODE_HINT = (
+    "\n\n⚠️ Пришли код <b>с пробелами</b>, например <code>1 2 3 4 5</code>: "
+    "если отправить его целиком, Telegram сочтёт код утёкшим и аннулирует."
+)
+
+
+async def _report_send_error(message: Message, state: FSMContext, e: Exception) -> None:
+    if isinstance(e, errors.PhoneNumberInvalidError):
+        await message.answer("Telegram не принял этот номер. Проверь и отправь ещё раз.")
+        return  # stay on the phone step
+    await state.clear()
+    if isinstance(e, errors.FloodWaitError):
+        await message.answer(f"Telegram просит подождать {e.seconds} с перед новой попыткой входа.")
+    elif isinstance(e, errors.ApiIdInvalidError):
+        await message.answer("Telegram отклонил tg_api_id/tg_api_hash. Проверь их на my.telegram.org.")
+    elif isinstance(e, errors.PhoneNumberBannedError):
+        await message.answer("Этот номер заблокирован в Telegram.")
+    else:
+        log.exception("tglogin: send_code_request failed")
+        await message.answer(f"Telegram вернул ошибку: {type(e).__name__}: {e}. Подробности в логе аддона.")
 
 
 @router.message(TgLogin.code, F.text)
@@ -139,7 +230,7 @@ async def step_code(message: Message, state: FSMContext, collector: Collector) -
         return
     code = normalize_code(message.text)
     if code is None:
-        await message.answer("Код — это 5 цифр. Пришли с пробелами: 1 2 3 4 5")
+        await message.answer("Не вижу код. Пришли цифры с пробелами: 1 2 3 4 5 (или /resend)")
         return
     data = await state.get_data()
     try:

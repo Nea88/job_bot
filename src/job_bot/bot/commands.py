@@ -21,6 +21,9 @@ USER_COMMANDS = [
     ("start", "Начать заново"),
 ]
 
+# only meaningful inside a flow, so not in the "/" menu
+CONTEXT_COMMANDS = {"resend"}
+
 ADMIN_COMMANDS = [
     ("channels", "Telegram-каналы: /channels add|remove t.me/name"),
     ("tglogin", "Войти в Telegram-аккаунт для чтения каналов"),

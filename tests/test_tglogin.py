@@ -5,6 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey
 from aiogram.fsm.storage.memory import MemoryStorage
 from telethon import errors
+from telethon.tl.types import auth
 
 from job_bot.bot.handlers import telegram_login as tl
 
@@ -12,7 +13,10 @@ from job_bot.bot.handlers import telegram_login as tl
 class FakeClient:
     instances: list["FakeClient"] = []
 
+    sent_type = auth.SentCodeTypeApp(length=5)
+
     def __init__(self, *args, password_required=True):
+        self.sends = 0
         self.signed_in = False
         self.password_required = password_required
         self.disconnected = False
@@ -26,7 +30,13 @@ class FakeClient:
 
     async def send_code_request(self, phone):
         self.phone = phone
-        return SimpleNamespace(phone_code_hash="hash")
+        self.sends += 1
+        return auth.SentCode(
+            type=self.sent_type if self.sends == 1 else auth.SentCodeTypeSms(length=5),
+            phone_code_hash="hash",
+            next_type=auth.CodeTypeSms(),
+            timeout=60,
+        )
 
     async def sign_in(self, phone=None, code=None, *, password=None, phone_code_hash=None):
         if password is not None:
@@ -80,6 +90,7 @@ def test_normalizers():
     assert tl.normalize_code("1 2 3 4 5") == "12345"
     assert tl.normalize_code("12-345") == "12345"
     assert tl.normalize_code("12") is None
+    assert tl.normalize_code("1 2 3 4 5 6") == "123456"
 
 
 async def test_full_login_with_2fa(env):
@@ -132,3 +143,41 @@ async def test_non_admin_ignored(env):
     msg = Msg("/tglogin")
     await tl.cmd_tglogin(msg, state, settings, collector)
     assert msg.replies == [] and await state.get_state() is None
+
+
+async def test_code_destination_and_resend(env):
+    state, settings, collector = env
+    await tl.cmd_tglogin(Msg("/tglogin"), state, settings, collector)
+    phone = Msg("+79001234567")
+    await tl.step_phone(phone, state, settings)
+    assert "служебный чат «Telegram»" in phone.replies[0]
+    assert "/resend через 60 с" in phone.replies[0] and "по SMS" in phone.replies[0]
+
+    resend = Msg("/resend")
+    await tl.resend_code(resend, state)
+    assert FakeClient.instances[-1].sends == 2
+    assert "по SMS на этот номер" in resend.replies[0]
+    assert await state.get_state() == tl.TgLogin.code.state
+
+
+async def test_email_setup_required_stops_flow(env, monkeypatch):
+    state, settings, collector = env
+    monkeypatch.setattr(FakeClient, "sent_type", auth.SentCodeTypeSetUpEmailRequired())
+    await tl.cmd_tglogin(Msg("/tglogin"), state, settings, collector)
+    phone = Msg("+79001234567")
+    await tl.step_phone(phone, state, settings)
+    assert "Почта для входа" in phone.replies[0]
+    assert await state.get_state() is None and FakeClient.instances[-1].disconnected
+
+
+async def test_unexpected_send_error_is_reported(env, monkeypatch):
+    state, settings, collector = env
+
+    async def boom(self, phone):
+        raise RuntimeError("logged in right after sending the code")
+
+    monkeypatch.setattr(FakeClient, "send_code_request", boom)
+    await tl.cmd_tglogin(Msg("/tglogin"), state, settings, collector)
+    phone = Msg("+79001234567")
+    await tl.step_phone(phone, state, settings)
+    assert "RuntimeError" in phone.replies[0] and await state.get_state() is None
