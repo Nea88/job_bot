@@ -72,6 +72,10 @@ def format_profile(p: MarketProfile, filter_name: str) -> str:
     ]
     for s in p.skills:
         lines.append(f"{s.share:>4.0%}  {escape(s.skill)}" + (f"  (обязательно в {s.must_share:.0%})" if s.must_share else ""))
+    if p.domains:
+        lines += ["", f"<b>Области:</b> {escape(', '.join(p.domains))}"]
+    if p.tasks:
+        lines += ["", "<b>Типичные задачи:</b>", *(f"• {escape(t)}" for t in p.tasks)]
     return "\n".join(lines)
 
 

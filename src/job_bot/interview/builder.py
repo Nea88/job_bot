@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from job_bot.db.models import Filter, Interview, Vacancy, utcnow
 from job_bot.llm.ollama import OllamaClient
-from job_bot.llm.prompts import INTERVIEW_SYSTEM, INTERVIEW_USER
+from job_bot.llm.prompts import GROUNDING, INTERVIEW_SYSTEM, INTERVIEW_USER
 from job_bot.llm.schemas import InterviewPlan
 from job_bot.matching import matches
 
@@ -17,6 +17,8 @@ log = logging.getLogger(__name__)
 
 WINDOW_DAYS = 30
 TOP_SKILLS = 12
+TOP_TASKS = 12
+TOP_DOMAINS = 3
 MIN_VACANCIES = 3
 TECHNICAL_QUESTIONS = 10
 
@@ -34,6 +36,8 @@ class MarketProfile:
     role: str
     seniority: str
     skills: list[SkillStat]
+    domains: list[str]
+    tasks: list[str]  # typical tasks quoted from the vacancies
 
 
 def aggregate(vacancies: Iterable[Vacancy], top: int = TOP_SKILLS) -> MarketProfile:
@@ -42,6 +46,8 @@ def aggregate(vacancies: Iterable[Vacancy], top: int = TOP_SKILLS) -> MarketProf
     must: Counter[str] = Counter()
     roles: Counter[str] = Counter()
     seniorities: Counter[str] = Counter()
+    domains: Counter[str] = Counter()
+    tasks: list[list[str]] = []
     n = 0
     for v in vacancies:
         n += 1
@@ -49,6 +55,10 @@ def aggregate(vacancies: Iterable[Vacancy], top: int = TOP_SKILLS) -> MarketProf
             roles[v.role] += 1
         if v.seniority and v.seniority != "unknown":
             seniorities[v.seniority] += 1
+        if v.domain:
+            domains[v.domain.lower()] += 1
+        if v.tasks:
+            tasks.append(v.tasks)
         for r in v.requirements:
             if r.kind != "hard":
                 continue
@@ -62,7 +72,24 @@ def aggregate(vacancies: Iterable[Vacancy], top: int = TOP_SKILLS) -> MarketProf
         role=roles.most_common(1)[0][0] if roles else "Software Engineer",
         seniority=seniorities.most_common(1)[0][0] if seniorities else "middle",
         skills=[SkillStat(s, count[s] / n, must[s] / n) for s in ranked] if n else [],
+        domains=[d for d, _ in domains.most_common(TOP_DOMAINS)],
+        tasks=_pick_tasks(tasks),
     )
+
+
+def _pick_tasks(per_vacancy: list[list[str]], top: int = TOP_TASKS) -> list[str]:
+    """Tasks are free text and rarely repeat verbatim: take them round-robin (each vacancy lists its
+    main duties first), so one long vacancy cannot crowd out the rest."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for i in range(max(map(len, per_vacancy), default=0)):
+        for tasks in per_vacancy:
+            if i < len(tasks) and tasks[i].lower() not in seen:
+                seen.add(tasks[i].lower())
+                out.append(tasks[i])
+                if len(out) == top:
+                    return out
+    return out
 
 
 async def market_profile(sm: async_sessionmaker, f: Filter, days: int = WINDOW_DAYS) -> MarketProfile:
@@ -99,6 +126,9 @@ class InterviewService:
             total=total,
             technical=TECHNICAL_QUESTIONS,
             system_design=f'- {system_design} по system design (skill = "system design");\n' if system_design else "",
+            domains=f"\nПредметные области: {', '.join(profile.domains)}\n" if profile.domains else "",
+            tasks="\nЗадачи из вакансий:\n" + "\n".join(f"- {t}" for t in profile.tasks) + "\n" if profile.tasks else "",
+            grounding=GROUNDING if profile.tasks else "",
         )
         plan = await self._llm.chat_json(INTERVIEW_SYSTEM, prompt, InterviewPlan, temperature=0.5)
 

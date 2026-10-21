@@ -40,7 +40,7 @@ docker compose run --rm bot python scripts/telethon_login.py   # если нуж
 |---|---|
 | `/filters` | список, создание (мастер), удаление фильтров |
 | `/interview` | тестовое интервью по фильтру (пошагово, с ответами) |
-| `/stats` | топ навыков по вакансиям фильтра за 30 дней |
+| `/stats` | топ навыков, задачи и области по вакансиям фильтра за 30 дней |
 | `/daily` | ежедневное интервью в `DAILY_INTERVIEW_HOUR` |
 | `/pause`, `/resume` | рассылка |
 | `/channels`, `/run_now` | админ: каналы, внеочередной сбор |
@@ -53,7 +53,7 @@ docker compose run --rm bot python scripts/telethon_login.py   # если нуж
   `source+id` и по «название+компания» между источниками, `matching.py` — единые правила фильтра.
 - `pipeline/analyze.py` — очередь анализа через Ollama с JSON-схемой; навыки нормализуются по
   `skills_aliases.yaml`.
-- `interview/builder.py` — агрегат навыков → вопросы от LLM.
+- `interview/builder.py` — агрегат навыков и задач из вакансий → вопросы от LLM.
 
 ## Тесты
 

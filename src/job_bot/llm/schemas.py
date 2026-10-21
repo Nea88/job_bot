@@ -14,6 +14,8 @@ class Extraction(BaseModel):
     is_vacancy: bool
     role: str
     seniority: Seniority
+    domain: str
+    tasks: list[str]
     hard_skills: list[Skill]
     soft_skills: list[str]
 

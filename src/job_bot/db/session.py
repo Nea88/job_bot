@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlalchemy import event, select, update
+from sqlalchemy import event, inspect, select, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
 from job_bot.db.models import Base, Filter, TgChannel
@@ -25,12 +25,25 @@ async def init_db(db_url: str) -> tuple[AsyncEngine, async_sessionmaker]:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_add_columns)
         # before 0.1.2 the wizard stored "300" literally; it always meant thousands
         await conn.execute(update(Filter).where(Filter.salary_min < 1000).values(salary_min=Filter.salary_min * 1000))
     sm = async_sessionmaker(engine, expire_on_commit=False)
     await _add_new_sources(sm)
     await _normalize_channels(sm)
     return engine, sm
+
+
+# columns added after release: create_all does not alter existing tables
+NEW_COLUMNS = {"vacancies": {"domain": "VARCHAR(100)", "tasks": "JSON"}}
+
+
+def _add_columns(conn) -> None:
+    for table, columns in NEW_COLUMNS.items():
+        existing = {c["name"] for c in inspect(conn).get_columns(table)}
+        for name, ddl in columns.items():
+            if name not in existing:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
 
 async def _add_new_sources(sm: async_sessionmaker) -> None:

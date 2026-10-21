@@ -1,8 +1,9 @@
 import asyncio
 import logging
 from collections.abc import Iterable
+from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from job_bot.db.models import Requirement, Sent, Vacancy, utcnow
@@ -14,6 +15,9 @@ from job_bot.skills import normalize_skill
 log = logging.getLogger(__name__)
 
 MAX_DESCRIPTION_CHARS = 6000
+MAX_TASKS = 6
+# vacancies analyzed before tasks were extracted are redone if they are still fresh enough for /interview
+REANALYZE_WINDOW = timedelta(days=30)
 
 
 class Analyzer:
@@ -32,12 +36,19 @@ class Analyzer:
                 self._queue.put_nowait(vid)
 
     async def backfill(self) -> None:
-        """Re-queue vacancies left unanalyzed (restart, LLM was down); only ones sent to someone."""
+        """Re-queue vacancies left unanalyzed (restart, LLM was down) or analyzed before tasks were
+        extracted; only ones sent to someone, never-analyzed ones first."""
         async with self._sm() as session:
             ids = await session.scalars(
                 select(Vacancy.id)
-                .where(Vacancy.analyzed_at.is_(None), Vacancy.id.in_(select(Sent.vacancy_id)))
-                .order_by(Vacancy.id.desc())
+                .where(
+                    Vacancy.id.in_(select(Sent.vacancy_id)),
+                    or_(
+                        Vacancy.analyzed_at.is_(None),
+                        Vacancy.tasks.is_(None) & (Vacancy.fetched_at >= utcnow() - REANALYZE_WINDOW),
+                    ),
+                )
+                .order_by(Vacancy.analyzed_at.is_not(None), Vacancy.id.desc())
             )
             self.enqueue(ids)
 
@@ -57,7 +68,7 @@ class Analyzer:
     async def analyze(self, vacancy_id: int) -> None:
         async with self._sm() as session:
             vacancy = await session.get(Vacancy, vacancy_id)
-            if vacancy is None or vacancy.analyzed_at is not None:
+            if vacancy is None or (vacancy.analyzed_at is not None and vacancy.tasks is not None):
                 return
             result = await self._llm.chat_json(
                 EXTRACT_SYSTEM,
@@ -71,10 +82,21 @@ class Analyzer:
             vacancy.is_vacancy = result.is_vacancy
             vacancy.role = result.role[:200]
             vacancy.seniority = result.seniority
+            vacancy.domain = " ".join(result.domain.split())[:100] or None
+            vacancy.tasks = _tasks(result.tasks)
             vacancy.requirements = _requirements(result)
             vacancy.analyzed_at = utcnow()
             await session.commit()
-            log.info("analyzed %s: %d skills", vacancy_id, len(vacancy.requirements))
+            log.info("analyzed %s: %d skills, %d tasks", vacancy_id, len(vacancy.requirements), len(vacancy.tasks))
+
+
+def _tasks(tasks: list[str]) -> list[str]:
+    out: list[str] = []
+    for t in tasks:
+        t = " ".join(t.split()).strip(" .;-•")[:200]
+        if t and t.lower() not in {o.lower() for o in out}:
+            out.append(t)
+    return out[:MAX_TASKS]
 
 
 def _requirements(result: Extraction) -> list[Requirement]:

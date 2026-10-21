@@ -89,6 +89,9 @@ class Vacancy(Base):
     is_vacancy: Mapped[bool | None]
     role: Mapped[str | None] = mapped_column(String(200))
     seniority: Mapped[str | None] = mapped_column(String(20))
+    domain: Mapped[str | None] = mapped_column(String(100))
+    # what the job is about, in the vacancy's own words; None = analyzed before 0.3.3
+    tasks: Mapped[list[str] | None] = mapped_column(JSON(none_as_null=True))
 
     requirements: Mapped[list["Requirement"]] = relationship(
         back_populates="vacancy", cascade="all, delete-orphan", lazy="selectin"
